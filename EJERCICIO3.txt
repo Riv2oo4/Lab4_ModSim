@@ -1,0 +1,22 @@
+class Agent:
+    id: int
+    age: int
+    role: Literal["healthcare","teacher","other"]
+    access: int        # 1=alto, 3=bajo
+    hesitancy: float   # 0-1
+    risk_score: float  # 0-10
+    last_offer_ts: float
+    vax_status: Literal["none","dose1","dose2","booster"]
+
+def priority(agent):
+    p = 0
+    if agent.age >= 65:        p -= 1000
+    if agent.role == "healthcare": p -= 900
+    if agent.role == "teacher":    p -= 800
+    p -= 10 * agent.risk_score
+    p += 50 * (agent.access - 1)      
+    p += 200 * agent.hesitancy        
+    return p
+
+if agent.vax_status == "none":
+    schedule_event("offer_vaccine", t=now(), priority=priority(agent))
