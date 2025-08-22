@@ -1,0 +1,163 @@
+
+# 1. Definición de Clase con Rasgos Heterogéneos
+
+CLASE Persona:
+    # Rasgos discretos
+    ocupacion: enum {SALUD, EDUCACION, TRANSPORTE, COMERCIO, OFICINA, OTRO}
+    grupo_edad: enum {JOVEN, ADULTO, MAYOR}
+    nivel_socioeconomico: enum {BAJO, MEDIO, ALTO}
+    
+    # Rasgos continuos
+    tasa_movilidad: real [0.0, 1.0]
+    indice_exposicion: real [0.0, 10.0]
+    
+    # Rasgo relacional
+    id_hogar: entero
+    miembros_hogar: lista[entero]
+
+# 1.d) Codificación sin sesgo ocupacional:
+# Usar vectores de características objetivas en lugar de rankings
+
+FUNCION codificar_ocupacion(tipo):
+    vector = {
+        contactos_dia: entero,
+        horas_exposicion: real,
+        distancia_promedio: real
+    }
+    
+    SI tipo == SALUD:
+        RETORNAR {30, 8.0, 0.5}
+    SI tipo == EDUCACION:
+        RETORNAR {25, 6.0, 1.5}
+    # No asignar "riesgo" directo, derivarlo de características
+"""
+
+
+# 2. Métodos de Muestreo
+
+
+CLASE GeneradorPoblacion:
+    
+    FUNCION generar_movilidad(ocupacion, edad):
+        # Distribución Gamma (sesgo positivo)
+        α = 2.0  # shape
+        θ = 0.3  # scale
+        
+        movilidad = muestra_gamma(α, θ)
+        
+        SI edad == MAYOR:
+            movilidad *= 0.6
+        SI ocupacion == TRANSPORTE:
+            movilidad = max(movilidad, 0.7)
+        
+        RETORNAR min(movilidad, 1.0)
+    
+    FUNCION generar_exposicion(ocupacion, nse):
+        # Distribución Log-Normal
+        μ = 1.5
+        σ = 0.5
+        
+        exposicion = muestra_lognormal(μ, σ)
+        
+        SI nse == BAJO:
+            exposicion *= 1.4  # hacinamiento
+        SI ocupacion == SALUD:
+            exposicion *= 1.5
+        
+        RETORNAR min(exposicion, 10.0)
+    
+    FUNCION generar_hogares(n_personas):
+        hogares = []
+        personas_asignadas = 0
+        id_hogar = 0
+        
+        MIENTRAS personas_asignadas < n_personas:
+            # Poisson para tamaño hogar
+            tamaño = max(1, min(6, muestra_poisson(λ=2.8)))
+            
+            hogar = {
+                id: id_hogar,
+                miembros: crear_miembros(tamaño)
+            }
+            
+            hogares.agregar(hogar)
+            personas_asignadas += tamaño
+            id_hogar += 1
+        
+        RETORNAR hogares
+
+# 2.a) Validación 20% enfermeras nocturnas:
+
+FUNCION validar_turnos_nocturnos(poblacion):
+    enfermeras = filtrar(poblacion, ocupacion == SALUD_ENFERMERIA)
+    total = longitud(enfermeras)
+    nocturnas = contar(e.turno == NOCHE para e en enfermeras)
+    
+    proporcion = nocturnas / total
+    objetivo = 0.20
+    
+    SI abs(proporcion - objetivo) > 0.02:
+        # Ajuste dirigido
+        deficit = (objetivo * total) - nocturnas
+        reasignar_turnos(enfermeras, deficit)
+    
+    # Validación Monte Carlo
+    proporciones = []
+    PARA sim en [1..1000]:
+        muestra = muestrear(enfermeras, total)
+        prop = contar(turno == NOCHE) / total
+        proporciones.agregar(prop)
+    
+    IC_95 = [percentil(proporciones, 2.5), percentil(proporciones, 97.5)]
+    ASSERT objetivo en IC_95
+
+3. Correlaciones y Efectos en la Dinámica
+
+FUNCION aplicar_correlaciones(persona):
+    # NSE bajo → menor vacunación + mayor exposición
+    SI persona.nivel_socioeconomico == BAJO:
+        persona.prob_vacuna *= 0.4
+        persona.indice_exposicion *= 1.4
+        persona.contactos_hogar = muestra_poisson(5)
+    SINO SI persona.nivel_socioeconomico == ALTO:
+        persona.prob_vacuna *= 1.5
+        persona.contactos_hogar = muestra_poisson(2)
+    
+    # Ocupación esencial → movilidad forzada
+    SI persona.ocupacion en [SALUD, TRANSPORTE, COMERCIO]:
+        persona.movilidad_minima = 0.7
+        persona.puede_confinar = FALSO
+    
+    # Edad → severidad
+    SI persona.grupo_edad == MAYOR:
+        persona.factor_severidad = 2.5
+        persona.prob_comorbilidad = 0.6
+
+FUNCION calcular_R0_estratificado(poblacion):
+    R0_por_nse = {}
+    R0_base = 2.5
+    
+    PARA nse en [BAJO, MEDIO, ALTO]:
+        subpob = filtrar(poblacion, nivel_socioeconomico == nse)
+        
+        # Factores multiplicativos
+        f_hacinamiento = promedio(p.contactos_hogar) / 3
+        f_movilidad = promedio(p.movilidad_minima)
+        f_proteccion = 1 - (0.7 * tasa_vacunacion(subpob))
+        
+        R0_por_nse[nse] = R0_base * f_hacinamiento * f_movilidad * f_proteccion
+    
+    RETORNAR R0_por_nse
+    # Esperado: BAJO=4.2, MEDIO=2.8, ALTO=1.8
+
+HIPÓTESIS - Distorsión de la dinámica:
+
+Las correlaciones NSE-bajo + hacinamiento + movilidad-forzada + bajo-acceso-vacunas generan:
+
+1. R0 heterogéneo: 2-3x mayor en poblaciones vulnerables
+2. Ondas epidémicas secuenciales por estrato social
+3. Concentración desproporcionada: 40% casos en 20% población
+4. Umbral inmunidad de rebaño variable: 85% en NSE bajo vs 60% en alto
+
+Fundamento: La transmisión no es homogénea sino que forma "bolsillos epidémicos" 
+donde las intervenciones uniformes fallan sistemáticamente.
