@@ -15,7 +15,7 @@ CLASE Persona:
     id_hogar: entero
     miembros_hogar: lista[entero]
 
-# 1.d) Codificación sin sesgo ocupacional:
+# 1. Codificación sin sesgo ocupacional:
 # Usar vectores de características objetivas en lugar de rankings
 
 FUNCION codificar_ocupacion(tipo):
@@ -86,7 +86,7 @@ CLASE GeneradorPoblacion:
         
         RETORNAR hogares
 
-# 2.a) Validación 20% enfermeras nocturnas:
+# 2.a Validación 20% enfermeras nocturnas:
 
 FUNCION validar_turnos_nocturnos(poblacion):
     enfermeras = filtrar(poblacion, ocupacion == SALUD_ENFERMERIA)
